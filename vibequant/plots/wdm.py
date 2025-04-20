@@ -12,6 +12,7 @@ def plot_weekday_averages(weekday_averages, **kwargs):
     Returns:
         matplotlib.pyplot: The plot object.
     """
+    plt.close('all')
     plt.figure(figsize=kwargs.pop("figsize", (6, 4)))
     weekday_averages.plot(
         kind="bar",
@@ -24,7 +25,7 @@ def plot_weekday_averages(weekday_averages, **kwargs):
     plt.ylabel(kwargs.pop("ylabel", "Average % Change"))
     plt.xticks(rotation=kwargs.pop("xticks_rotation", 45))
     plt.tight_layout()
-    plt.show()
+    
     return plt
 
 def plot_day_of_month_averages(day_of_month_averages, **kwargs):
@@ -37,6 +38,7 @@ def plot_day_of_month_averages(day_of_month_averages, **kwargs):
     Returns:
         matplotlib.pyplot: The plot object.
     """
+    plt.close('all')
     plt.figure(figsize=kwargs.pop("figsize", (8, 4)))
     day_of_month_averages.plot(
         kind="bar",
@@ -49,7 +51,7 @@ def plot_day_of_month_averages(day_of_month_averages, **kwargs):
     plt.ylabel(kwargs.pop("ylabel", "Average % Change"))
     plt.xticks(rotation=kwargs.pop("xticks_rotation", 0))
     plt.tight_layout()
-    plt.show()
+    
     return plt
 
 def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
@@ -62,6 +64,7 @@ def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
     Returns:
         matplotlib.pyplot: The plot object.
     """
+    plt.close('all')
     plt.figure(figsize=kwargs.pop("figsize", (20, 6)))
     df_avg.plot(
         kind=kwargs.pop("kind", "bar"),
@@ -81,7 +84,7 @@ def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
         loc=kwargs.pop("legend_loc", "upper left"),
     )
     plt.tight_layout()
-    plt.show()
+    
     return plt
 
 def plot_calendar_change_grid(df_avg: pd.DataFrame, **kwargs):
@@ -94,6 +97,7 @@ def plot_calendar_change_grid(df_avg: pd.DataFrame, **kwargs):
     Returns:
         matplotlib.pyplot: The plot object.
     """
+    plt.close('all')
     plt.figure(figsize=kwargs.pop("figsize", (10, 6)))
     sns.heatmap(
         df_avg,
@@ -107,5 +111,4 @@ def plot_calendar_change_grid(df_avg: pd.DataFrame, **kwargs):
     plt.xlabel(kwargs.pop("xlabel", "Weekday"))
     plt.ylabel(kwargs.pop("ylabel", "Day of Month"))
     plt.tight_layout()
-    plt.show()
     return plt

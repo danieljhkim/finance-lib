@@ -49,12 +49,11 @@ class YFinanceSource(DataSource):
         if not isinstance(ticker, str) or not ticker:
             raise ValueError("Ticker must be a non-empty string.")
 
-        df = yf.download(ticker, start=start, end=end)
+        df = yf.download(ticker, start=start, end=end, multi_level_index=False)
         if df.empty:
             return pd.DataFrame()  # Return empty DataFrame if no data
-
-        df = df.copy()
         df["Change"] = ((df["Close"] - df["Open"]) / df["Open"]) * 100
         df["DayOfMonth"] = df.index.day
         df["Weekday"] = df.index.day_name()
+        df = df.copy()
         return df

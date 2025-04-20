@@ -35,25 +35,30 @@ class BaseInterface(ABC):
     def avg_by_weekday(self, ticker, start=None, end=None, source="yfinance"):
         df = self._get_source(source).fetch(ticker, start, end)
         wdf = df.groupby("Weekday")["Change"].mean()
-        wdf.reindex(self.WEEK_DAYS)
-        vf = VibeFrame(wdf, "W")
+        wdf = wdf.reindex(self.WEEK_DAYS)
+        wdf_df = wdf.to_frame(name="AvgChange")
+        vf = VibeFrame(wdf_df, "W")
+        vf.original_df = df
         return vf
 
     def avg_by_day_of_month(self, ticker, start=None, end=None, source="yfinance"):
         df = self._get_source(source).fetch(ticker, start, end)
         dom_df = df.groupby("DayOfMonth")["Change"].mean()
-        dom_df.reindex(range(1, 32))
+        dom_df = dom_df.reindex(range(1, 32))
+        dom_df = dom_df.to_frame(name="AvgChange")
         vf = VibeFrame(dom_df, "M")
+        vf.original_df = df
         return vf
 
     def avg_by_weekday_and_dom(self, ticker, start=None, end=None, source="yfinance"):
         df = self._get_source(source).fetch(ticker, start, end)
         pivot = (
-            df.groupby(["DayOfMonth", "Weekday"])["% Change"]
+            df.groupby(["DayOfMonth", "Weekday"])["Change"]
             .mean()
             .unstack(fill_value=0)
         )
         pivot = pivot.reindex(columns=self.WEEK_DAYS, fill_value=0)
         pivot.index.name = "DayOfMonth"
         vf = VibeFrame(pivot, "WM")
+        vf.original_df = df
         return vf

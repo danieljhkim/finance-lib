@@ -4,6 +4,14 @@ from vibequant.wrappers.vibes import VibeFrame
 
 class StockInterface(BaseInterface):
     
+    WEEK_DAYS = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+    ]
+    
     def __init__(self):
         self.sources = {
             'yfinance': YFinanceSource()

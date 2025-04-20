@@ -57,4 +57,4 @@ class YFinanceSource(DataSource):
         df["Change"] = ((df["Close"] - df["Open"]) / df["Open"]) * 100
         df["DayOfMonth"] = df.index.day
         df["Weekday"] = df.index.day_name()
-        return df.reset_index()
+        return df

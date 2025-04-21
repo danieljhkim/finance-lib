@@ -5,16 +5,11 @@ import seaborn as sns
 def plot_weekday_averages(weekday_averages, **kwargs):
     """
     Bar plot of average percentage change by weekday.
-
-    Args:
-        weekday_averages (pd.Series): Series with weekdays as index and averages as values.
-        **kwargs: Additional keyword arguments for pandas.Series.plot().
-    Returns:
-        matplotlib.pyplot: The plot object.
     """
     plt.close('all')
     weekday_averages.plot(
         kind="bar",
+        figsize=kwargs.pop("figsize", (10, 6)),
         color=kwargs.pop("color", "skyblue"),
         edgecolor=kwargs.pop("edgecolor", "black"),
         **kwargs,
@@ -24,22 +19,16 @@ def plot_weekday_averages(weekday_averages, **kwargs):
     plt.ylabel(kwargs.pop("ylabel", "Average % Change"))
     plt.xticks(rotation=kwargs.pop("xticks_rotation", 45))
     plt.tight_layout()
-    
     return plt
 
 def plot_day_of_month_averages(day_of_month_averages, **kwargs):
     """
     Bar plot of average percentage change by day of month.
-
-    Args:
-        day_of_month_averages (pd.Series): Series with day of month as index and averages as values.
-        **kwargs: Additional keyword arguments for pandas.Series.plot().
-    Returns:
-        matplotlib.pyplot: The plot object.
     """
     plt.close('all')
     day_of_month_averages.plot(
         kind="bar",
+        figsize=kwargs.pop("figsize", (14, 6)),
         color=kwargs.pop("color", "lightgreen"),
         edgecolor=kwargs.pop("edgecolor", "black"),
         **kwargs,
@@ -49,22 +38,16 @@ def plot_day_of_month_averages(day_of_month_averages, **kwargs):
     plt.ylabel(kwargs.pop("ylabel", "Average % Change"))
     plt.xticks(rotation=kwargs.pop("xticks_rotation", 0))
     plt.tight_layout()
-    
     return plt
 
 def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
     """
     Bar plot of average percentage change by day of month, grouped by weekday.
-
-    Args:
-        df_avg (pd.DataFrame): DataFrame with day of month as index and weekdays as columns.
-        **kwargs: Additional keyword arguments for pandas.DataFrame.plot().
-    Returns:
-        matplotlib.pyplot: The plot object.
     """
     plt.close('all')
     df_avg.plot(
         kind=kwargs.pop("kind", "bar"),
+        figsize=kwargs.pop("figsize", (18, 8)),
         colormap=kwargs.pop("colormap", "viridis"),
         edgecolor=kwargs.pop("edgecolor", "black"),
         legend=kwargs.pop("legend", True),
@@ -81,20 +64,14 @@ def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
         loc=kwargs.pop("legend_loc", "upper left"),
     )
     plt.tight_layout()
-    
     return plt
 
 def plot_calendar_change_grid(df_avg: pd.DataFrame, **kwargs):
     """
     Heatmap of average percentage change by day of month (rows) and weekday (columns).
-
-    Args:
-        df_avg (pd.DataFrame): DataFrame with day of month as index and weekdays as columns.
-        **kwargs: Additional keyword arguments for seaborn.heatmap().
-    Returns:
-        matplotlib.pyplot: The plot object.
     """
     plt.close('all')
+    plt.figure(figsize=kwargs.pop("figsize", (14, 8)))
     sns.heatmap(
         df_avg,
         annot=kwargs.pop("annot", True),

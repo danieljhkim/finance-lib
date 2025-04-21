@@ -1,0 +1,23 @@
+[project]
+name = "vibequant"
+version = "0.1.0"
+description = "A Python library for financial API abstraction, visualization, and analysis"
+authors = [{ name="Daniel Kim" }]
+readme = "README.md"
+license = "MIT"
+dependencies = [
+    "yfinance",
+    "pandas",
+    "matplotlib",
+    "numpy",
+    "scipy",
+    "seaborn",
+    "importlib-resources", 
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["vibequant"]

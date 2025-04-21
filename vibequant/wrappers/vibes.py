@@ -16,11 +16,14 @@ from vibequant.plots.common import (
 )
 from typing import Optional, List, Any, Union, Callable, Dict
 
-
 class VibeFrame:
     """
-    Wrapper for a pandas DataFrame with convenience plotting and display methods.
+    Wrapper for a pandas DataFrame with convenience plotting and statistics methods.
     """
+
+    WEEK_DAYS: List[str] = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    ]
 
     _vibe_plot_map: Dict[str, Callable] = {
         "W": plot_weekday_averages,
@@ -36,41 +39,27 @@ class VibeFrame:
             df (pd.DataFrame): The DataFrame to wrap.
             type (str, optional): The type of data (e.g., 'W', 'M', 'WM') for plotting dispatch.
         """
-        self.df: pd.DataFrame = df
-        self.original_df: Optional[pd.DataFrame] = None
+        self._original_df: pd.DataFrame = self._ensure_time_features(df)
         self.type: Optional[str] = type
-
-    def set_type(self, type: str) -> None:
-        """
-        Set the type of the VibeFrame for plotting dispatch.
-
-        Args:
-            type (str): The type string (e.g., 'W', 'M', 'WM').
-        """
-        self.type = type
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the VibeFrame.
-
-        Returns:
-            str: String representation.
-        """
-        return f"VibeFrame(type={self.type}, shape={self.df.shape})"
+        transform_map = self._get_transform_map()
+        if type in transform_map:
+            self.df: pd.DataFrame = transform_map[type](self._original_df)
+        else:
+            self.df: pd.DataFrame = self._original_df.copy()
 
     @property
-    def original_dataframe(self) -> Optional[pd.DataFrame]:
+    def original_df(self) -> pd.DataFrame:
         """
-        Return the original DataFrame, if set.
+        Returns the original DataFrame (with time features ensured).
 
         Returns:
-            Optional[pd.DataFrame]: The original DataFrame or None.
+            pd.DataFrame: The original DataFrame.
         """
-        return self.original_df
+        return self._original_df
 
     def dataframe(self) -> pd.DataFrame:
         """
-        Return the wrapped DataFrame.
+        Returns the current (possibly transformed) DataFrame.
 
         Returns:
             pd.DataFrame: The wrapped DataFrame.
@@ -79,9 +68,180 @@ class VibeFrame:
 
     def print(self) -> None:
         """
-        Print the DataFrame in a table format.
+        Print the current DataFrame in a table format.
         """
         print(tableize(self.df))
+
+    def __repr__(self) -> str:
+        """
+        String representation of the VibeFrame.
+
+        Returns:
+            str: String representation.
+        """
+        return f"VibeFrame(type={self.type}, shape={self.df.shape})"
+
+    # --- Transformation logic ---
+
+    @classmethod
+    def _get_transform_map(cls) -> Dict[str, Callable[[pd.DataFrame], pd.DataFrame]]:
+        """
+        Returns a mapping from type string to transformation function.
+
+        Returns:
+            Dict[str, Callable]: Mapping of type to transformation function.
+        """
+        return {
+            "W": cls._transform_weekday,
+            "M": cls._transform_day_of_month,
+            "WM": cls._transform_weekday_and_dom,
+        }
+
+    @staticmethod
+    def _ensure_time_features(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure 'DayOfMonth', 'Weekday', and 'Change' columns exist in the DataFrame.
+        If missing, infer from Date index/column and calculate 'Change' from 'Open' and 'Close'.
+        Collapses MultiIndex columns to first level if present.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame with required time features.
+        """
+        df = df.copy()
+        # Collapse MultiIndex columns to first level if present
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        # Infer date features if missing
+        if "DayOfMonth" not in df.columns or "Weekday" not in df.columns:
+            if isinstance(df.index, pd.DatetimeIndex):
+                date_index = df.index
+            else:
+                date_col = None
+                for col in df.columns:
+                    if col.lower() in ["date", "datetime", "timestamp", "time"]:
+                        date_col = col
+                        break
+                if date_col:
+                    df[date_col] = pd.to_datetime(df[date_col])
+                    date_index = pd.DatetimeIndex(df[date_col])
+                else:
+                    raise ValueError(
+                        "No datetime index or column found to infer 'DayOfMonth' and 'Weekday'."
+                    )
+            df["DayOfMonth"] = date_index.day
+            df["Weekday"] = date_index.day_name()
+        # Calculate Change if missing
+        if "Change" not in df.columns:
+            if "Open" in df.columns and "Close" in df.columns:
+                df["Change"] = ((df["Close"] - df["Open"]) / df["Open"]) * 100
+            else:
+                raise ValueError(
+                    "Cannot compute 'Change': missing 'Open' or 'Close' columns."
+                )
+        return df
+
+    @staticmethod
+    def _transform_weekday(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform DataFrame to average change by weekday.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame with average change by weekday.
+        """
+        df = VibeFrame._ensure_time_features(df)
+        week_days = VibeFrame.WEEK_DAYS
+        wdf = df.groupby("Weekday")["Change"].mean().reindex(week_days)
+        return wdf.to_frame(name="AvgChange")
+
+    @staticmethod
+    def _transform_day_of_month(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform DataFrame to average change by day of month.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame with average change by day of month.
+        """
+        df = VibeFrame._ensure_time_features(df)
+        dom_df = df.groupby("DayOfMonth")["Change"].mean().reindex(range(1, 32))
+        return dom_df.to_frame(name="AvgChange")
+
+    @staticmethod
+    def _transform_weekday_and_dom(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform DataFrame to average change by both weekday and day of month.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: Pivot table with average change by day of month and weekday.
+        """
+        df = VibeFrame._ensure_time_features(df)
+        week_days = VibeFrame.WEEK_DAYS
+        pivot = (
+            df.groupby(["DayOfMonth", "Weekday"])["Change"]
+            .mean()
+            .unstack(fill_value=0)
+            .reindex(columns=week_days, fill_value=0)
+        )
+        pivot.index.name = "DayOfMonth"
+        return pivot
+
+    def set_type(self, type: str) -> None:
+        """
+        Set the type of the VibeFrame for plotting dispatch and mutate self.df accordingly.
+
+        Args:
+            type (str): The type string (e.g., 'W', 'M', 'WM').
+        """
+        self.type = type
+        df = self.original_df if self.original_df is not None else self.df
+        transform_map = self._get_transform_map()
+        if type in transform_map:
+            self.df = transform_map[type](df)
+        # else: do not mutate self.df
+
+    # --- Statistics ---
+
+    def stat(self) -> pd.DataFrame:
+        """
+        Return statistics for each numeric column in the DataFrame.
+
+        Returns:
+            pd.DataFrame: Statistics (describe) for numeric columns.
+        """
+        return self.df.describe().T
+
+    def grouped_stats(
+        self, by: Union[str, List[str]] = "Weekday", col: str = "Change"
+    ) -> pd.DataFrame:
+        """
+        Return grouped statistics for a column.
+
+        Args:
+            by (str or list, optional): Column(s) to group by. Defaults to "Weekday".
+            col (str): Column to compute statistics on.
+
+        Returns:
+            pd.DataFrame: Grouped statistics.
+        """
+        if self.original_df is None:
+            raise ValueError("No original DataFrame set for grouped statistics.")
+        stats = self.original_df.groupby(by)[col].agg(
+            ["mean", "std", "min", "max", "count", "median"]
+        )
+        return stats
+
+    # --- Plotting ---
 
     def vibe_plot(self, **kwargs) -> Any:
         """
@@ -96,7 +256,9 @@ class VibeFrame:
         plot_func = self._vibe_plot_map.get(self.type, self.line_plot)
         return plot_func(self.df, **kwargs)
 
-    def line_plot(self, columns: Optional[Union[str, List[str]]] = None, **kwargs) -> Any:
+    def line_plot(
+        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+    ) -> Any:
         """
         Line plot of the DataFrame, optionally for selected columns.
 
@@ -108,16 +270,15 @@ class VibeFrame:
             Any: The plot object (typically matplotlib.pyplot).
         """
         plt.close("all")
-        if columns is None:
-            data = self.df
-        else:
-            data = self.df[columns]
-        ax = data.plot(kind="line", **kwargs)
+        data = self.df if columns is None else self.df[columns]
+        data.plot(kind="line", **kwargs)
         plt.title("Line Plot")
         plt.tight_layout()
         return plt
 
-    def bar_plot(self, columns: Optional[Union[str, List[str]]] = None, **kwargs) -> Any:
+    def bar_plot(
+        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+    ) -> Any:
         """
         Bar plot of the DataFrame, optionally for selected columns.
 
@@ -131,7 +292,9 @@ class VibeFrame:
         cols = self.df.columns.tolist() if columns is None else columns
         return plot_bar(self.df, cols, **kwargs)
 
-    def hist_plot(self, columns: Optional[Union[str, List[str]]] = None, **kwargs) -> Any:
+    def hist_plot(
+        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+    ) -> Any:
         """
         Histogram plot of the DataFrame, optionally for selected columns.
 
@@ -145,7 +308,9 @@ class VibeFrame:
         cols = self.df.columns.tolist() if columns is None else columns
         return plot_hist(self.df, cols, **kwargs)
 
-    def box_plot(self, columns: Optional[Union[str, List[str]]] = None, **kwargs) -> Any:
+    def box_plot(
+        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+    ) -> Any:
         """
         Box plot of the DataFrame, optionally for selected columns.
 
@@ -159,7 +324,9 @@ class VibeFrame:
         cols = self.df.columns.tolist() if columns is None else columns
         return plot_box(self.df, cols, **kwargs)
 
-    def correlation_plot(self, columns: Optional[List[str]] = None, **kwargs) -> Any:
+    def correlation_plot(
+        self, columns: Optional[List[str]] = None, **kwargs
+    ) -> Any:
         """
         Correlation plot of the DataFrame, optionally for selected columns.
 
@@ -180,7 +347,7 @@ class VibeFrame:
         value_col: str = "Close",
         agg: str = "sum",
         freq: str = "D",
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Time series plot of the DataFrame.
@@ -212,14 +379,18 @@ class VibeFrame:
                 dt_cols = df.select_dtypes(include=["datetime", "datetimetz"]).columns
                 if len(dt_cols) > 0:
                     time_col = dt_cols[0]
-        if time_col is None and self.original_df is not None and self.original_df is not df:
+        if (
+            time_col is None
+            and self.original_df is not None
+            and self.original_df is not df
+        ):
             return plot_time_series(
                 df=self.original_df,
                 time_col=None,
                 value_col=value_col,
                 agg=agg,
                 freq=freq,
-                **kwargs
+                **kwargs,
             )
         if time_col is None:
             raise ValueError("No datetime column found in DataFrame.")

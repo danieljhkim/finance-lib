@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Optional
 from vibequant.sources.yfinance_source import YFinanceSource
 from vibequant.wrappers.vibes import VibeFrame
 
-
 class BaseInterface(ABC):
     """
     Abstract base class for financial data interfaces.
@@ -83,11 +82,7 @@ class BaseInterface(ABC):
             VibeFrame: Resulting data wrapped in a VibeFrame.
         """
         df = self._get_source(source).fetch(ticker, start, end)
-        wdf = df.groupby("Weekday")["Change"].mean()
-        wdf = wdf.reindex(self.WEEK_DAYS)
-        wdf_df = wdf.to_frame(name="AvgChange")
-        vf = VibeFrame(wdf_df, type="W")
-        vf.original_df = df
+        vf = VibeFrame(df, type="W")
         return vf
 
     def avg_by_day_of_month(
@@ -106,11 +101,7 @@ class BaseInterface(ABC):
             VibeFrame: Resulting data wrapped in a VibeFrame.
         """
         df = self._get_source(source).fetch(ticker, start, end)
-        dom_df = df.groupby("DayOfMonth")["Change"].mean()
-        dom_df = dom_df.reindex(range(1, 32))
-        dom_df = dom_df.to_frame(name="AvgChange")
-        vf = VibeFrame(dom_df, type="M")
-        vf.original_df = df
+        vf = VibeFrame(df, type="M")
         return vf
 
     def avg_by_weekday_and_dom(
@@ -129,13 +120,5 @@ class BaseInterface(ABC):
             VibeFrame: Resulting data wrapped in a VibeFrame.
         """
         df = self._get_source(source).fetch(ticker, start, end)
-        pivot = (
-            df.groupby(["DayOfMonth", "Weekday"])["Change"]
-            .mean()
-            .unstack(fill_value=0)
-        )
-        pivot = pivot.reindex(columns=self.WEEK_DAYS, fill_value=0)
-        pivot.index.name = "DayOfMonth"
-        vf = VibeFrame(pivot, type="WM")
-        vf.original_df = df
+        vf = VibeFrame(df, type="WM")
         return vf

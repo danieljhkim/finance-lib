@@ -13,7 +13,6 @@ def plot_weekday_averages(weekday_averages, **kwargs):
         matplotlib.pyplot: The plot object.
     """
     plt.close('all')
-    plt.figure(figsize=kwargs.pop("figsize", (6, 4)))
     weekday_averages.plot(
         kind="bar",
         color=kwargs.pop("color", "skyblue"),
@@ -39,7 +38,6 @@ def plot_day_of_month_averages(day_of_month_averages, **kwargs):
         matplotlib.pyplot: The plot object.
     """
     plt.close('all')
-    plt.figure(figsize=kwargs.pop("figsize", (8, 4)))
     day_of_month_averages.plot(
         kind="bar",
         color=kwargs.pop("color", "lightgreen"),
@@ -65,7 +63,6 @@ def plot_calendar_change_bar(df_avg: pd.DataFrame, **kwargs):
         matplotlib.pyplot: The plot object.
     """
     plt.close('all')
-    plt.figure(figsize=kwargs.pop("figsize", (20, 6)))
     df_avg.plot(
         kind=kwargs.pop("kind", "bar"),
         colormap=kwargs.pop("colormap", "viridis"),
@@ -98,7 +95,6 @@ def plot_calendar_change_grid(df_avg: pd.DataFrame, **kwargs):
         matplotlib.pyplot: The plot object.
     """
     plt.close('all')
-    plt.figure(figsize=kwargs.pop("figsize", (10, 6)))
     sns.heatmap(
         df_avg,
         annot=kwargs.pop("annot", True),

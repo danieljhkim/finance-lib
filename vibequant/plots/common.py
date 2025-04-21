@@ -57,9 +57,6 @@ def plot_correlation(df, cols):
 def plot_time_series(df, time_col, value_col, agg='sum', freq='D'):
     plt.close('all')
     df = df.copy()
-    if time_col is not None:
-        df[time_col] = pd.to_datetime(df[time_col])
-        df.set_index(time_col, inplace=True)
     if agg == 'sum':
         series = df[value_col].resample(freq).sum()
     elif agg == 'mean':

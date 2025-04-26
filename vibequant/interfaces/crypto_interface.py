@@ -1,23 +1,33 @@
 from typing import List
 from .base import BaseInterface
-from vibequant.sources.coingecko_source import CoinGeckoSource
 from vibequant.sources.yfinance_source import YFinanceSource
+
 
 class CryptoInterface(BaseInterface):
     """
     Interface for cryptocurrency data sources, extending BaseInterface.
     """
 
+    WEEK_DAYS: List[str] = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
     def __init__(self) -> None:
         """
         Initialize the CryptoInterface with available crypto data sources.
         """
         super().__init__()
-        # You can uncomment or add more sources as needed
         self.sources = {
             # "coingecko": CoinGeckoSource(),
             "yfinance": YFinanceSource()
         }
+        self.isStock = False
 
     def list_tickers(self, source: str = "yfinance") -> List[str]:
         """

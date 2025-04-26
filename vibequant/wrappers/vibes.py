@@ -1,11 +1,17 @@
 from __future__ import annotations
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+from math import sqrt
+
+from pyparsing import col
 from vibequant.utils.general import tableize
 from vibequant.plots.wdm import (
     plot_weekday_averages,
     plot_day_of_month_averages,
     plot_calendar_change_grid,
+    plot_month_dom_weekday_heatmaps,
+    plot_monthly_averages,
 )
 from vibequant.plots.common import (
     plot_bar,
@@ -16,22 +22,35 @@ from vibequant.plots.common import (
 )
 from typing import Optional, List, Any, Union, Callable, Dict
 
+STOCK_WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+CRYPTO_WEEK_DAYS = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+
+
 class VibeFrame:
     """
     Wrapper for a pandas DataFrame with convenience plotting and statistics methods.
     """
 
-    WEEK_DAYS: List[str] = [
-        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-    ]
-
     _vibe_plot_map: Dict[str, Callable] = {
+        "D": plot_day_of_month_averages,
         "W": plot_weekday_averages,
-        "M": plot_day_of_month_averages,
+        "M": plot_monthly_averages,
         "WM": plot_calendar_change_grid,
+        "DWM": plot_month_dom_weekday_heatmaps,
     }
 
-    def __init__(self, df: pd.DataFrame, type: Optional[str] = None):
+    def __init__(
+        self, df: pd.DataFrame, type: Optional[str] = None, is_stock: bool = True
+    ) -> None:
         """
         Initialize a VibeFrame.
 
@@ -39,6 +58,8 @@ class VibeFrame:
             df (pd.DataFrame): The DataFrame to wrap.
             type (str, optional): The type of data (e.g., 'W', 'M', 'WM') for plotting dispatch.
         """
+        self.is_stock = is_stock
+        self.WEEK_DAYS = STOCK_WEEK_DAYS if is_stock else CRYPTO_WEEK_DAYS
         self._original_df: pd.DataFrame = self._ensure_time_features(df)
         self.type: Optional[str] = type
         transform_map = self._get_transform_map()
@@ -66,11 +87,11 @@ class VibeFrame:
         """
         return self.df
 
-    def print(self) -> None:
+    def print(self, size=10) -> None:
         """
         Print the current DataFrame in a table format.
         """
-        print(tableize(self.df))
+        print(tableize(self.df, size=size))
 
     def __repr__(self) -> str:
         """
@@ -93,14 +114,16 @@ class VibeFrame:
         """
         return {
             "W": cls._transform_weekday,
-            "M": cls._transform_day_of_month,
+            "D": cls._transform_day_of_month,
             "WM": cls._transform_weekday_and_dom,
+            "M": cls._transform_month,
+            "DWM": cls._transform_weekday_month_dom,
         }
 
     @staticmethod
     def _ensure_time_features(df: pd.DataFrame) -> pd.DataFrame:
         """
-        Ensure 'DayOfMonth', 'Weekday', and 'Change' columns exist in the DataFrame.
+        Ensure 'DayOfMonth', 'Weekday', 'Month', and 'Change' columns exist in the DataFrame.
         If missing, infer from Date index/column and calculate 'Change' from 'Open' and 'Close'.
         Collapses MultiIndex columns to first level if present.
 
@@ -115,7 +138,11 @@ class VibeFrame:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         # Infer date features if missing
-        if "DayOfMonth" not in df.columns or "Weekday" not in df.columns:
+        if (
+            "DayOfMonth" not in df.columns
+            or "Weekday" not in df.columns
+            or "Month" not in df.columns
+        ):
             if isinstance(df.index, pd.DatetimeIndex):
                 date_index = df.index
             else:
@@ -129,10 +156,11 @@ class VibeFrame:
                     date_index = pd.DatetimeIndex(df[date_col])
                 else:
                     raise ValueError(
-                        "No datetime index or column found to infer 'DayOfMonth' and 'Weekday'."
+                        "No datetime index or column found to infer 'DayOfMonth', 'Weekday', and 'Month'."
                     )
             df["DayOfMonth"] = date_index.day
             df["Weekday"] = date_index.day_name()
+            df["Month"] = date_index.month
         # Calculate Change if missing
         if "Change" not in df.columns:
             if "Open" in df.columns and "Close" in df.columns:
@@ -155,9 +183,28 @@ class VibeFrame:
             pd.DataFrame: DataFrame with average change by weekday.
         """
         df = VibeFrame._ensure_time_features(df)
-        week_days = VibeFrame.WEEK_DAYS
+        week_days = [d for d in STOCK_WEEK_DAYS if d in df["Weekday"].unique()]
+        if len(week_days) < 7 and set(CRYPTO_WEEK_DAYS).issubset(
+            set(df["Weekday"].unique())
+        ):
+            week_days = CRYPTO_WEEK_DAYS
         wdf = df.groupby("Weekday")["Change"].mean().reindex(week_days)
         return wdf.to_frame(name="AvgChange")
+
+    @staticmethod
+    def _transform_month(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform DataFrame to average change by month.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: DataFrame with average change by month.
+        """
+        df = VibeFrame._ensure_time_features(df)
+        mdf = df.groupby("Month")["Change"].mean().reindex(range(1, 13))
+        return mdf.to_frame(name="AvgChange")
 
     @staticmethod
     def _transform_day_of_month(df: pd.DataFrame) -> pd.DataFrame:
@@ -186,7 +233,11 @@ class VibeFrame:
             pd.DataFrame: Pivot table with average change by day of month and weekday.
         """
         df = VibeFrame._ensure_time_features(df)
-        week_days = VibeFrame.WEEK_DAYS
+        week_days = [d for d in STOCK_WEEK_DAYS if d in df["Weekday"].unique()]
+        if len(week_days) < 7 and set(CRYPTO_WEEK_DAYS).issubset(
+            set(df["Weekday"].unique())
+        ):
+            week_days = CRYPTO_WEEK_DAYS
         pivot = (
             df.groupby(["DayOfMonth", "Weekday"])["Change"]
             .mean()
@@ -196,12 +247,38 @@ class VibeFrame:
         pivot.index.name = "DayOfMonth"
         return pivot
 
-    def set_type(self, type: str) -> None:
+    @staticmethod
+    def _transform_weekday_month_dom(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform DataFrame to average change by month, day of month, and weekday.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame.
+
+        Returns:
+            pd.DataFrame: MultiIndex DataFrame with (Month, DayOfMonth) as index and Weekday as columns.
+        """
+        df = VibeFrame._ensure_time_features(df)
+        week_days = [d for d in STOCK_WEEK_DAYS if d in df["Weekday"].unique()]
+        if len(week_days) < 7 and set(CRYPTO_WEEK_DAYS).issubset(
+            set(df["Weekday"].unique())
+        ):
+            week_days = CRYPTO_WEEK_DAYS
+        pivot = (
+            df.groupby(["Month", "DayOfMonth", "Weekday"])["Change"]
+            .mean()
+            .unstack("Weekday", fill_value=0)
+            .reindex(columns=week_days, fill_value=0)
+        )
+        pivot.index.set_names(["Month", "DayOfMonth"], inplace=True)
+        return pivot
+
+    def transform_view(self, type: str) -> None:
         """
         Set the type of the VibeFrame for plotting dispatch and mutate self.df accordingly.
 
         Args:
-            type (str): The type string (e.g., 'W', 'M', 'WM').
+            type (str): The type string (e.g., 'W', 'M', 'WM', 'DWM').
         """
         self.type = type
         df = self.original_df if self.original_df is not None else self.df
@@ -241,6 +318,32 @@ class VibeFrame:
         )
         return stats
 
+    def t_sorted(self, type="Weekday", sig=1.5):
+        """
+        Return a list of (index_label, t_stat) tuples sorted by |t|.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Must have columns ['mean', 'std', 'count'] (or ['mean', 'std', 'n']).
+        name : str, optional
+            Used only for a helpful .name attribute when you print the result.
+        ascending : bool, default False
+            Sort by descending |t| (largest-magnitude first).  Flip for ascending.
+
+        Returns
+        -------
+        list[(label, float)]
+        """
+        df = self.grouped_stats(by=type)
+        # allow either 'count' or 'n'
+        n_col = "count" if "count" in df.columns else "n"
+        t = df["mean"] / (df["std"] / np.sqrt(df[n_col]))
+        out = sorted(zip(df.index, t), key=lambda x: abs(x[1]), reverse=True)
+        # filter by significance level
+        out = [(label, round(t_stat, 3)) for label, t_stat in out if abs(t_stat) > sig]
+        return out
+
     # --- Plotting ---
 
     def vibe_plot(self, **kwargs) -> Any:
@@ -254,10 +357,10 @@ class VibeFrame:
             Any: The plot object (typically matplotlib.pyplot).
         """
         plot_func = self._vibe_plot_map.get(self.type, self.line_plot)
-        return plot_func(self.df, **kwargs)
+        return plot_func(df=self.df, **kwargs)
 
     def line_plot(
-        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+        self, columns: Optional[Union[str, List[str]]] = None, df=None, **kwargs
     ) -> Any:
         """
         Line plot of the DataFrame, optionally for selected columns.
@@ -270,14 +373,15 @@ class VibeFrame:
             Any: The plot object (typically matplotlib.pyplot).
         """
         plt.close("all")
-        data = self.df if columns is None else self.df[columns]
+        df = self.df if df is None else df
+        data = df if columns is None else df[columns]
         data.plot(kind="line", **kwargs)
         plt.title("Line Plot")
         plt.tight_layout()
         return plt
 
     def bar_plot(
-        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+        self, columns: Optional[Union[str, List[str]]] = None, df=None, **kwargs
     ) -> Any:
         """
         Bar plot of the DataFrame, optionally for selected columns.
@@ -293,7 +397,7 @@ class VibeFrame:
         return plot_bar(self.df, cols, **kwargs)
 
     def hist_plot(
-        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+        self, columns: Optional[Union[str, List[str]]] = None, df=None, **kwargs
     ) -> Any:
         """
         Histogram plot of the DataFrame, optionally for selected columns.
@@ -309,7 +413,7 @@ class VibeFrame:
         return plot_hist(self.df, cols, **kwargs)
 
     def box_plot(
-        self, columns: Optional[Union[str, List[str]]] = None, **kwargs
+        self, columns: Optional[Union[str, List[str]]] = None, df=None, **kwargs
     ) -> Any:
         """
         Box plot of the DataFrame, optionally for selected columns.
@@ -325,7 +429,7 @@ class VibeFrame:
         return plot_box(self.df, cols, **kwargs)
 
     def correlation_plot(
-        self, columns: Optional[List[str]] = None, **kwargs
+        self, columns: Optional[List[str]] = None, df=None, **kwargs
     ) -> Any:
         """
         Correlation plot of the DataFrame, optionally for selected columns.
@@ -342,11 +446,11 @@ class VibeFrame:
 
     def time_series_plot(
         self,
-        df: Optional[pd.DataFrame] = None,
         time_col: Optional[str] = None,
         value_col: str = "Close",
         agg: str = "sum",
         freq: str = "D",
+        df=None,
         **kwargs,
     ) -> Any:
         """
@@ -363,13 +467,10 @@ class VibeFrame:
         Returns:
             Any: The plot object (typically matplotlib.pyplot).
         """
-        if df is None:
-            df = self.df
-        # Prefer DatetimeIndex if present
+        df = self.df
         if time_col is None and isinstance(df.index, pd.DatetimeIndex):
             time_col = df.index.name if df.index.name else None
 
-        # Try to infer time_col from columns if not found
         if time_col is None:
             for col in df.columns:
                 if col.lower() in ["date", "datetime", "timestamp", "time"]:

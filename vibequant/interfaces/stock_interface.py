@@ -2,6 +2,7 @@ from typing import List
 from .base import BaseInterface
 from vibequant.sources.yfinance_source import YFinanceSource
 
+
 class StockInterface(BaseInterface):
     """
     Interface for stock data sources, extending BaseInterface.
@@ -21,9 +22,8 @@ class StockInterface(BaseInterface):
         """
         super().__init__()
         # Override sources if needed, or extend
-        self.sources = {
-            "yfinance": YFinanceSource()
-        }
+        self.sources = {"yfinance": YFinanceSource()}
+        self.isStock = True
 
     def list_tickers(self, source: str = "yfinance") -> List[str]:
         """
